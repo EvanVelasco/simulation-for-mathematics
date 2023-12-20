@@ -1,0 +1,206 @@
+---
+title: "Simulation for the Self Study of Mathematics"
+author: "Evan Velasco"
+date: "2023-12-14"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+------
+
+#### Motivation
+When I registered for [Georgia Tech's ISYE 6644 Simulation course](https://omscs.gatech.edu/isye-6644-simulation-and-modeling-engineering-and-science), I expected to take a statistically heavy operations research course which outlined the theory of conducting simulation studies. What I did not expect to learn was an entirely new method of problem solving. Simulation provides an easy solution in many cases where an analytic or numerical solution is difficult. The power of this aspect began to shine as the semester continued and students were faced with harder challenges. Students would pose a question to the TAs about a complicated theory or a solution they could not wrap their head around. In many of these cases, the TA would simply suggest to "simulate it." While this may seem like a non answer, it is in fact a brilliant way to help a student conceptualize the problem. I began building simulations of concepts discussed after every lecture as well as for topics outside of the scope of the class. I realized that the power of simulation to understand mathematics can be an essential component for any student struggling though a lecture, textbook, or research paper on their own. This short essay is an attempt to share this wonderful learning method with a broader community.
+
+---------------------------------------------------------------------
+
+#### Simulation for Solution Validation
+
+Suppose we are given the following stationary first-order exponential autoregressive process:
+
+$$X_{i}=\begin{cases}0.5 X_{i},\textit{  w.p. } 0.5 \\
+0.5 X_{i}+\varepsilon _{i},\textit{  w.p. } 0.5 \end{cases}$$
+
+where $X_{i}$ and the $\varepsilon_{i}$'s are i.i.d. Exp(1). We are asked to find $Cov(X_{0},X_{1})$.
+
+Using known properties of covariance, variance, and the exponential distribution we come up with the following solution.
+
+$$
+\begin{aligned}
+  Cov(X_{0},X_{1}) &= Cov(X_{0},0.5X_{0})0.5 + Cov(X_{0},0.5X_{0}+\varepsilon _{i})0.5 \\
+  &= 0.5^2Var(X_{0}) + 0.5^2Var(X_{0}) + 0 \\
+  &= 0.5Var(X_{0}) \\
+  &= 0.5
+\end{aligned}
+$$
+
+We have found a solution, but depending on our experience with the subject material we may not be confident in it. Validating our answer can be difficult, especially when working out of a textbook where answer keys are limited or reserved entirely to professors. To get around this, we can build a simulation which computes $Cov(X_{0},X_{1})$ 1 million times to estimate the true value.
+
+```{r simulation for validation}
+set.seed(54241343)
+
+covEar <- function(a, lambda, n){
+  # Define vectors
+  X0 <- numeric(n)
+  X1 <- numeric(n)
+  
+  # Simulate n times
+  for (i in 1:n){
+    x0 = rexp(1, rate = lambda)
+    rn <- runif(1)
+    
+    if (rn <= a){
+      x1 = a*x0
+    } else {
+      x1 = a*x0 + rexp(1)
+    }
+    
+    X0[i] = x0
+    X1[i] = x1
+  }
+  # Return covariance
+  return (cov(X0, X1))
+}
+
+# Call function
+covEar(a = 0.5, lambda = 1, n = 1000000)
+```
+
+From our simulation, we find that the estimated value for $Cov(X_{0},X_{1})$ is 0.4990558. This is extremely close to our solution of 0.5, indicating that our answer almost certainly correct. Note that we could have used simulation from the beginning to brute force our way to a solution. This is a valid practice in many situations where the only goal is to find a reasonable estimate. However, in this particular example our primary goal is to learn. Thus we use a simulation for validation, instead of our primary mechanism for solving.
+
+------------------------------------------------------------------------
+
+#### Simulation for Conceptual Learning
+
+Simulation is not only useful for computing answers to specific solutions. It can also help answer more conceptual questions. For example, lets focus on a generalized version of our stationary first-order exponential autoregressive process:
+
+$$X_{i}=\begin{cases}\alpha X_{i},\textit{  w.p. } \alpha \\
+\alpha X_{i}+\varepsilon _{i},\textit{  w.p. } (1-\alpha) \end{cases}$$
+
+where $X_{i}$ and the $\varepsilon_{i}$'s are i.i.d. Exp($\lambda$), and 0 < $\alpha$ < 1. 
+
+How does changing the values of $\alpha$ and $\lambda$ affect this process? What happens to $Cov(X_{0},X_{1})$ when the values of $\alpha$ and $\lambda$ are high or low? Once again simulation comes to the rescue. The below application allows a user to explore such questions. Note that the true solution to $Cov(X_{0},X_{1})$ is calculated as $\alpha / \lambda ^2$. Derivation of this solution as well as a link to a github repository containing the code used to produce this application can be found in the Appendix at the bottom of the page.
+
+```{r ear functions (not printed), echo=FALSE}
+ear1 <- function(a, lambda, n){
+  X = numeric(n)
+  X[1] = rexp(1, rate = lambda)
+  
+  for (i in 2:n){
+    if (runif(1) <= a){
+      X[i] = a * X[i-1]
+    } else {
+      X[i] = a * X[i-1] + rexp(1, rate = lambda)
+    }
+  }
+  return(X)
+} 
+
+covEarVec <- function(a, lambda, n){
+  
+  cov_array = numeric(n)
+  X0 <- numeric(n)
+  X1 <- numeric(n)
+  
+  for (i in 1:n){
+    x0 = rexp(1, rate = lambda)
+    rn <- runif(1)
+    
+    if (rn <= a){
+      x1 = a*x0
+    } else {
+      x1 = a*x0 + rexp(1)
+    }
+    
+    X0[i] = x0
+    X1[i] = x1
+    
+    cov_array[i] = cov(X0[1:i], X1[1:i])
+  }
+
+  return (cov_array)
+}
+
+```
+
+
+```{r simulation app, echo=FALSE}
+
+inputPanel(
+  sliderInput("alpha_adj", label = "Alpha:",
+              min = 0.01, max = 0.99, value = 0.5, step = 0.01),
+  
+  numericInput("lambda_adj", label = "Lambda:", value = 1),
+  
+  numericInput("n_adj", label = "n",
+               value = 1000),
+  
+  numericInput("seed_adj", label = "Seed", value = NA)
+)
+
+tabsetPanel(
+  tabPanel("Visual Analysis", value=1,
+           br(),
+           plotOutput("plot")), 
+  tabPanel("Cov(X0,X1)", value=2,
+           br(),
+           plotOutput("plot2"))
+)
+
+output$plot <- renderPlot({
+  if (is.na(input$seed_adj)!=TRUE){
+    set.seed(input$seed_adj)
+  }
+  
+  
+  dat <- ear1(a=input$alpha_adj, lambda = input$lambda_adj, n = input$n_adj)
+  
+  plot(dat, type='l', xlab = "Index", ylab = 'Value',
+       main = paste0("Stationary First-Order Exponential Autoregressive Process with Alpha = ",input$alpha_adj, " and Lambda = ", input$lambda_adj))
+})
+
+output$plot2 <- renderPlot({
+    if (is.na(input$seed_adj)!=TRUE){
+    set.seed(input$seed_adj)
+  }
+  
+  dat <- covEarVec(a=input$alpha_adj, lambda = input$lambda_adj, n = input$n_adj)
+  true_value = input$alpha_adj / (input$lambda_adj^2)
+  
+  plot(dat, type='l', xlab = "Simulation Iteration", ylab = 'Value', 
+       main = paste0("Simulation of Cov(X0,X1) for EAR(1) Process with Alpha = ", input$alpha_adj, 
+                     " and Lambda = ", input$lambda_adj))
+  abline(h=true_value, lty=2)
+  text(input$n_adj*0.9, true_value, paste0("True Value: ", round(true_value,2)), 
+       pos = 3, col = 'red', font = 2)
+})
+
+```
+
+----------------------------------------------------------------------
+
+#### Closing Thoughts
+
+This paper explored how we can use simulation to understand an EAR(1) process. However, the general thought process can be applied to a wide variety of mathematical questions and theorems. It is important to note that simulation should not completely replace other forms of learning. In our example, performing the derivation of $Cov(X_{0},X_{1})$ is really a requirement to truly understanding it. Simulation is simply a tool to help us along the way. If constructed correctly, we can use simulations to confirm results, understand individual steps in processes, and build a conceptual understanding of complicated scenarios. It is for these reasons that I believe Simulation is an indispensable tool for any person self studying mathematics.
+
+--------------------------------------------------------------------------
+
+#### Appendix A
+Derivation of solution to $Cov(X_{0},X_{1})$ for generic $\alpha$ and $\lambda$ in a stationary first-order exponential autoregressive process.
+
+$$
+\begin{aligned}
+  Cov(X_{0},X_{1}) &= Cov(X_{0},\alpha X_{0})\alpha + Cov(X_{0},(1-\alpha)X_{0}+\varepsilon _{i})(1-\alpha) \\
+  &= \alpha^2Var(X_{0}) + \alpha(1-\alpha)Var(X_{0}) + 0 \\
+  &= \alpha^2Var(X_{0}) + \alpha Var(X_{0}) - \alpha^2Var(X_{0}) \\
+  &= \alpha Var(X_{0}) \\
+  &= \alpha / \lambda ^2
+\end{aligned}
+$$
+
+
+#### Appendix B
+Code used in embedded shiny application in "Simulation for Conceptual Learning."
