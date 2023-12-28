@@ -1,7 +1,6 @@
 ---
 title: "Simulation for the Self Study of Mathematics"
 author: "Evan Velasco"
-date: "2023-12-14"
 output: html_document
 runtime: shiny
 ---
@@ -13,16 +12,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ------
 
 #### Motivation
-When I registered for [Georgia Tech's ISYE 6644 Simulation course](https://omscs.gatech.edu/isye-6644-simulation-and-modeling-engineering-and-science), I expected to take a statistically heavy operations research course which outlined the theory of conducting simulation studies. What I did not expect to learn was an entirely new method of problem solving. Simulation provides an easy solution in many cases where an analytic or numerical solution is difficult. The power of this aspect began to shine as the semester continued and students were faced with harder challenges. Students would pose a question to the TAs about a complicated theory or a solution they could not wrap their head around. In many of these cases, the TA would simply suggest to "simulate it." While this may seem like a non answer, it is in fact a brilliant way to help a student conceptualize the problem. I began building simulations of concepts discussed after every lecture as well as for topics outside of the scope of the class. I realized that the power of simulation to understand mathematics can be an essential component for any student struggling though a lecture, textbook, or research paper on their own. This short essay is an attempt to share this wonderful learning method with a broader community.
+When I registered for [Georgia Tech's ISYE 6644 Simulation course](https://omscs.gatech.edu/isye-6644-simulation-and-modeling-engineering-and-science), I expected to take a statistically heavy operations research course which outlined the theory of conducting simulation studies. What I did not expect to learn was an entirely new method of problem solving. Simulation provides an easy solution in many cases where an analytic or numerical solution is difficult. The power of this aspect began to shine as the semester continued and students were faced with harder challenges. Students would pose a question to the TAs about a complicated theory or a solution they could not wrap their head around. In many of these cases, the TA would simply suggest to "simulate it." While this may seem like a non answer, it is in fact a brilliant way to help a student conceptualize the problem. I began building simulations of concepts discussed after every lecture as well as for topics outside of the scope of the class. I realized that the power of simulation to understand mathematics can be an essential component for any student struggling though a lecture, textbook, or research paper on their own. This short essay is an attempt to share this learning method with a broader community.
 
 ---------------------------------------------------------------------
 
 #### Simulation for Solution Validation
 
-Suppose we are given the following stationary first-order exponential autoregressive process:
+Suppose we are given the following stationary first-order exponential autoregressive process (EAR(1)):
 
-$$X_{i}=\begin{cases}0.5 X_{i},\textit{  w.p. } 0.5 \\
-0.5 X_{i}+\varepsilon _{i},\textit{  w.p. } 0.5 \end{cases}$$
+$$X_{i}=\begin{cases}0.5 X_{i-1},\textit{  w.p. } 0.5 \\
+0.5 X_{i-1}+\varepsilon _{i},\textit{  w.p. } 0.5 \end{cases}$$
 
 where $X_{i}$ and the $\varepsilon_{i}$'s are i.i.d. Exp(1). We are asked to find $Cov(X_{0},X_{1})$.
 
@@ -69,26 +68,31 @@ covEar <- function(a, lambda, n){
 covEar(a = 0.5, lambda = 1, n = 1000000)
 ```
 
-From our simulation, we find that the estimated value for $Cov(X_{0},X_{1})$ is 0.4990558. This is extremely close to our solution of 0.5, indicating that our answer almost certainly correct. Note that we could have used simulation from the beginning to brute force our way to a solution. This is a valid practice in many situations where the only goal is to find a reasonable estimate. However, in this particular example our primary goal is to learn. Thus we use a simulation for validation, instead of our primary mechanism for solving.
+From our simulation, we find that the estimated value for $Cov(X_{0},X_{1})$ is 0.4990558. This is extremely close to our solution of 0.5, indicating that our answer almost certainly correct. Note that we could have used simulation from the beginning to brute force our way to a solution. This is a valid practice in many situations where the only goal is to find a reasonable estimate. However, in this example our primary goal is to learn. Thus we limit our use of simulation to validation purposes.
 
 ------------------------------------------------------------------------
 
 #### Simulation for Conceptual Learning
 
-Simulation is not only useful for computing answers to specific solutions. It can also help answer more conceptual questions. For example, lets focus on a generalized version of our stationary first-order exponential autoregressive process:
+Simulation is not only useful for computing answers to specific solutions. It can also help answer more conceptual questions. For example, lets focus on a generalized version of our EAR(1) process:
 
-$$X_{i}=\begin{cases}\alpha X_{i},\textit{  w.p. } \alpha \\
-\alpha X_{i}+\varepsilon _{i},\textit{  w.p. } (1-\alpha) \end{cases}$$
+$$X_{i}=\begin{cases}\alpha X_{i-1},\textit{  w.p. } \alpha \\
+\alpha X_{i-1}+\varepsilon _{i},\textit{  w.p. } (1-\alpha) \end{cases}$$
 
 where $X_{i}$ and the $\varepsilon_{i}$'s are i.i.d. Exp($\lambda$), and 0 < $\alpha$ < 1. 
 
 How does changing the values of $\alpha$ and $\lambda$ affect this process? What happens to $Cov(X_{0},X_{1})$ when the values of $\alpha$ and $\lambda$ are high or low? Once again simulation comes to the rescue. The below application allows a user to explore such questions. Note that the true solution to $Cov(X_{0},X_{1})$ is calculated as $\alpha / \lambda ^2$. Derivation of this solution as well as a link to a github repository containing the code used to produce this application can be found in the Appendix at the bottom of the page.
 
 ```{r ear functions (not printed), echo=FALSE}
+
+# function to generate an EAR(1) process
 ear1 <- function(a, lambda, n){
+  
+  # initialize vector + set first term to a random expo variable
   X = numeric(n)
   X[1] = rexp(1, rate = lambda)
   
+  # generate EAR(1) process based on definition and store values in X
   for (i in 2:n){
     if (runif(1) <= a){
       X[i] = a * X[i-1]
@@ -99,28 +103,34 @@ ear1 <- function(a, lambda, n){
   return(X)
 } 
 
+# function to generate vector of Cov(X0,X1) results by iteration
 covEarVec <- function(a, lambda, n){
   
+  # initialize vectors
   cov_array = numeric(n)
   X0 <- numeric(n)
   X1 <- numeric(n)
   
+  # generate X0 and a random uniform to determine how to calc X1
   for (i in 1:n){
     x0 = rexp(1, rate = lambda)
     rn <- runif(1)
     
+    # generate X1
     if (rn <= a){
       x1 = a*x0
     } else {
       x1 = a*x0 + rexp(1)
     }
     
+    # add new terms to vector
     X0[i] = x0
     X1[i] = x1
     
+    # recalculate cov(X0,X1)
     cov_array[i] = cov(X0[1:i], X1[1:i])
   }
-
+  
   return (cov_array)
 }
 
@@ -129,6 +139,7 @@ covEarVec <- function(a, lambda, n){
 
 ```{r simulation app, echo=FALSE}
 
+# inputs for user to adjust
 inputPanel(
   sliderInput("alpha_adj", label = "Alpha:",
               min = 0.01, max = 0.99, value = 0.5, step = 0.01),
@@ -141,6 +152,7 @@ inputPanel(
   numericInput("seed_adj", label = "Seed", value = NA)
 )
 
+# create two tabs for app
 tabsetPanel(
   tabPanel("Visual Analysis", value=1,
            br(),
@@ -150,26 +162,35 @@ tabsetPanel(
            plotOutput("plot2"))
 )
 
+# plot of EAR(1) process
 output$plot <- renderPlot({
+  
+  # conditional that uses set seed if user inputs one
   if (is.na(input$seed_adj)!=TRUE){
     set.seed(input$seed_adj)
   }
   
-  
+  # create data set using ear1 function
   dat <- ear1(a=input$alpha_adj, lambda = input$lambda_adj, n = input$n_adj)
   
+  # line plot for EAR(1) process
   plot(dat, type='l', xlab = "Index", ylab = 'Value',
        main = paste0("Stationary First-Order Exponential Autoregressive Process with Alpha = ",input$alpha_adj, " and Lambda = ", input$lambda_adj))
 })
 
+# plot of simulated results for Cov(X0,X1)
 output$plot2 <- renderPlot({
-    if (is.na(input$seed_adj)!=TRUE){
+  
+  # conditional that uses set seed if user inputs one
+  if (is.na(input$seed_adj)!=TRUE){
     set.seed(input$seed_adj)
   }
   
+  # create dat set using covEarVec function + calc true value of Cov(X0,X1)
   dat <- covEarVec(a=input$alpha_adj, lambda = input$lambda_adj, n = input$n_adj)
   true_value = input$alpha_adj / (input$lambda_adj^2)
   
+  # plot showing calculation by iteration compared to the true value
   plot(dat, type='l', xlab = "Simulation Iteration", ylab = 'Value', 
        main = paste0("Simulation of Cov(X0,X1) for EAR(1) Process with Alpha = ", input$alpha_adj, 
                      " and Lambda = ", input$lambda_adj))
@@ -180,11 +201,17 @@ output$plot2 <- renderPlot({
 
 ```
 
+From the application above we see that changing the value of $\alpha$ can drastically change the output of the process. Low values of $\alpha$ make the chart look relatively random while high values develop a pattern of decreases followed by large spikes. Changing the value of $\lambda$ affects the scale of the output. A high value for $\lambda$ results in very small numbers while a low value results in large numbers. 
+
+Returning to the original equation, both of these results make perfect sense. Taking $\alpha$ = 0.01, we see that our equation essentially becomes an exponential random variable. With high values of $\alpha$, the process is heavily correlated with its previous term and will only occasionally spike upwards when adding the additional exponential random number w.p. 1-$\alpha$. The value of $\lambda$ effecting the scale of the process is easy to see since this term effects the additive term $\varepsilon_{i}$. We know that the mean for an exponential random variable is  $1 / \lambda ^2$. Thus, we can expect the size of the $\varepsilon_{i}$ term to be smaller when $\lambda$ > 1 and to increase when $\lambda$ < 1. 
+
+While these insights could be gathered from the start, going through the process of building a simulation and analyzing the output breaks down these concepts into more digestible steps. Analyzing the properties of $Cov(X_{0},X_{1})$ is also easily done using the above application and is left as an exercise to the reader.
+
 ----------------------------------------------------------------------
 
 #### Closing Thoughts
 
-This paper explored how we can use simulation to understand an EAR(1) process. However, the general thought process can be applied to a wide variety of mathematical questions and theorems. It is important to note that simulation should not completely replace other forms of learning. In our example, performing the derivation of $Cov(X_{0},X_{1})$ is really a requirement to truly understanding it. Simulation is simply a tool to help us along the way. If constructed correctly, we can use simulations to confirm results, understand individual steps in processes, and build a conceptual understanding of complicated scenarios. It is for these reasons that I believe Simulation is an indispensable tool for any person self studying mathematics.
+This paper explored how we can use simulation to understand an EAR(1) process. However, the general thought process can be applied to a wide variety of mathematical questions and theorems. It is important to note that simulation should not completely replace other forms of learning. It is simply a tool to help us along the way. If constructed correctly, we can use simulations to confirm results, understand individual steps in processes, and build a conceptual understanding of complicated scenarios. It is for these reasons that I believe simulation is an indispensable tool for any person self studying mathematics.
 
 --------------------------------------------------------------------------
 
@@ -203,4 +230,7 @@ $$
 
 
 #### Appendix B
-Code used in embedded shiny application in "Simulation for Conceptual Learning."
+Code used to create embedded shiny application can be found here:
+https://github.com/EvanVelasco/simulation-for-mathematics
+
+
